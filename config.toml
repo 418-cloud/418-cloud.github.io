@@ -7,18 +7,37 @@ theme = "hello-friend-ng"
     logoMark     = ">"
     logoText     = "$ cloud /teapot/"
     logoHomeLink = "/"
+[menu]
+  [[menu.main]]
+    identifier = "posts"
+    name       = "Posts"
+    url        = "posts/"
+[params]
+  homeSubtitle = "teapots in the cloud"
+  dateform = "2 Jan, 2020"
+  dateformShort = "2 Jan"
+  dateformNum = "02.01.2006"
+  dateformNumTime = "02.01.2006 15:04"
 
-[[menu.main]]
+  [params.footer]
+      trademark = false
+      rss = false
+      copyright = false
+      author = false
 
+      topText = []
+      bottomText = [
+        "Powered by <a href=\"http://gohugo.io\">Hugo</a>",
+        "Themed by <a href=\"https://themes.gohugo.io/hugo-theme-hello-friend-ng/\">hello-friend-ng</a>"
+      ]
 
-[params.footer]
-    trademark = false
-    rss = false
-    copyright = false
-    author = false
+  [[params.social]]
+    name = "github"
+    url = "https://github.com/tjololo"
 
-    topText = []
-    bottomText = [
-      "Powered by <a href=\"http://gohugo.io\">Hugo</a>",
-      "Themed by <a href=\"https://themes.gohugo.io/hugo-theme-hello-friend-ng/\">hello-friend-ng</a>"
-    ]
+  [[params.social]]
+    name = "docker"
+    url = "https://hub.docker.com/u/tjololo"
+
+[permalinks]
+  posts = "/posts/:year/:month/:title/"
