@@ -1,4 +1,335 @@
-<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on 418 cloud</title><link>http://418.cloud/posts/</link><description>Recent content in Posts on 418 cloud</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Wed, 30 Jun 2021 16:26:21 +0200</lastBuildDate><atom:link href="http://418.cloud/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Welcome to 418.cloud</title><link>http://418.cloud/posts/2021/06/welcome-to-418.cloud/</link><pubDate>Wed, 30 Jun 2021 16:26:21 +0200</pubDate><guid>http://418.cloud/posts/2021/06/welcome-to-418.cloud/</guid><description>After far too much time I have finally taken the time to add some content to one of the domains I control, yes there are more without any content ;)
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on 418 cloud</title><link>http://418.cloud/posts/</link><description>Recent content in Posts on 418 cloud</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><lastBuildDate>Tue, 31 Aug 2021 19:05:00 +0200</lastBuildDate><atom:link href="http://418.cloud/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>Provision GKE Cluster using Terraform and Github Actions</title><link>http://418.cloud/posts/2021/08/provision-gke-cluster-using-terraform-and-github-actions/</link><pubDate>Tue, 31 Aug 2021 19:05:00 +0200</pubDate><guid>http://418.cloud/posts/2021/08/provision-gke-cluster-using-terraform-and-github-actions/</guid><description>I started my career as a software developer writing small monolithic web applications and web services in Java.
+Later the monoliths where replaced by microservices, nanoservice or functions. No matter what you are writing or calling it you will eventually need some servers to run it on.
+Yes even serverless at some point require servers, it&amp;rsquo;s just someone else&amp;rsquo;s server.
+As a developer at heart I strive to automate as much as possible through code, even the server.</description><content type="html"><![CDATA[<p>I started my career as a software developer writing small monolithic web applications and web services in Java.</p>
+<p>Later the monoliths where replaced by microservices, nanoservice or functions. No matter what you are writing or calling it you will eventually need some servers to run it on.</p>
+<p>Yes even serverless at some point require servers, it&rsquo;s just someone else&rsquo;s server.</p>
+<p>As a developer at heart I strive to automate as much as possible through code, even the server.</p>
+<p>In this post I will walk through how to provision a GKE cluster using terraform and Github Actions.</p>
+<h4 id="terraform">Terraform</h4>
+<p>Terraform is a tool for defining infrastructure as code for hundreds of cloud services. It provides a consistent way of defining infra structure and a single CLI tool to provision it all.</p>
+<h4 id="github-actions">Github Actions</h4>
+<p>Github Actions is Githubs solution for defining workflows directly in your Github repository. The workflows can be triggered on events like pushes, pull requests, merges in Github.</p>
+<h3 id="prerequisites">Prerequisites</h3>
+<ol>
+<li><a href="https://cloud.google.com/">GCP Account</a></li>
+<li><a href="https://github.com/">Github Account</a></li>
+<li><a href="https://cloud.google.com/sdk/gcloud">gcloud cli</a></li>
+<li><a href="https://cloud.google.com/storage/docs/gsutil">gsutil cli</a></li>
+</ol>
+<h3 id="demo-sources">Demo sources</h3>
+<p>If you want to fork the repository containing the code described in this post you can find it here: <a href="https://github.com/418-cloud/terraform-actions-gcp">418-cloud/terraform-actions-gcp</a></p>
+<h3 id="prepare-credentials-to-gcp-for-terraform">Prepare credentials to GCP for Terraform</h3>
+<p>As we are going to run terraform outside of google cloud we need a way for terraform google cloud provider to authenticate.</p>
+<h4 id="create-service-account">Create service account</h4>
+<p>Following the GCP documentation <a href="https://cloud.google.com/iam/docs/creating-managing-service-accounts">Creating and managing service accounts</a></p>
+<p>Authenticate with gcloud cli</p>
+<pre><code>gcloud auth login
+</code></pre><p>Switch to your project with:</p>
+<pre><code>gcloud config set project &lt;project-id&gt;
+</code></pre><p>After authenticating with gcloud commandline tool run this command to create a service account with the name <em>tf-gh-actions</em></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">gcloud iam service-accounts create tf-gh-actions <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --description<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;Used to provision resources with terraform from github actions&#34;</span> <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --display-name<span style="color:#f92672">=</span><span style="color:#e6db74">&#34;terraform github actions&#34;</span>
+</code></pre></div><h4 id="create-and-download-service-account-key">Create and download service account key</h4>
+<p>Following the GCP documentation <a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">Creating and managing service account keys</a></p>
+<p>Create a service account key to authenticate as the service account you created in the previous step run replace &lt;project-id&gt; with your project id</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">gcloud iam service-accounts keys create tf-gh-actions-key.json <span style="color:#ae81ff">\
+</span><span style="color:#ae81ff"></span>    --iam-account<span style="color:#f92672">=</span>tf-gh-actions@&lt;project-id&gt;.iam.gserviceaccount.com
+</code></pre></div><p>Running this command will create a json file name tf-gh-actions-key.json in the folder from where you ran this command. Keep this as we need it later.</p>
+<h4 id="create-storage-bucket-to-use-as-terraform-backend">Create storage bucket to use as terraform backend</h4>
+<p>Create a bucket to use as backend for terraform with gsutil</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">gsutil mb -p &lt;project-id&gt; -b on -l &lt;location&gt; --pap enforced gs://&lt;bucketname&gt;
+</code></pre></div><h4 id="grant-the-service-account-permissions">Grant the service account permissions</h4>
+<p>The service account terraform uses for its backend needs the Storage Object Admin role on the bucket you created.</p>
+<p>Grant the role with gsutil</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">gsutil iam ch serviceAccount:tf-gh-actions@&lt;project-id&gt;.iam.gserviceaccount.com:roles/storage.objectAdmin gs://&lt;bucketname&gt;
+</code></pre></div><p>To create different resources in your project the service account also needs enugh privileges to create those.</p>
+<p>Here is an example of how you grant the role editor in your project. Please make your own assessment of what roles you should grant to the service account.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">gcloud projects add-iam-policy-binding &lt;project-id&gt; --member<span style="color:#f92672">=</span>serviceAccount:tf-gh-actions@&lt;project-id&gt;.iam.gserviceaccount.com --role<span style="color:#f92672">=</span>roles/editor
+</code></pre></div><h3 id="setting-up-github-actions-workflow">Setting up Github Actions workflow</h3>
+<p>Workflows in Actions are defined as yaml-fields (sweet, sweet yaml) under the <code>.github/workflows</code> folder in the repository.</p>
+<p>As we push our pipeline and configuration to a git repository we need a safe place to store our credentials and other secrets. Naturally github knows this and has provided a place where you can store secrets for later consumption in a workflow.</p>
+<p>These are located in the Secrets section under the Settings tab of your repository.</p>
+<p><img src="/images/settings-secrets.png" alt="Github Settings"></p>
+<h4 id="adding-the-gcp-credentials-to-secrets">Adding the GCP credentials to secrets</h4>
+<p>We need to make the key we created for the service account earlier available to terraform.</p>
+<p>Create a new secret for your repository by pressing <code>New repository secret</code></p>
+<p>Copy the content of the tf-gh-actions-key.json and create a secret with the name GOOGLE_CREDENTIALS and past the file content as value.</p>
+<p>Create another secret for your project-id with the name GOOGLE_PROJECT this will be the default project where your resources will be created</p>
+<h4 id="create-terraform-workflow">Create terraform workflow</h4>
+<p>Clone your repository to your device and create a file named <code>main.yaml</code> under the folder <code>.github/workflows</code></p>
+<p>The content of main.yaml:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">name</span>: <span style="color:#ae81ff">Apply infrastructure</span>
+<span style="color:#f92672">on</span>:
+  <span style="color:#f92672">push</span>:
+    <span style="color:#f92672">branches</span>: [<span style="color:#ae81ff">main]</span>
+
+<span style="color:#f92672">jobs</span>:
+  <span style="color:#f92672">terraform</span>:
+    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Run terraform apply</span>
+    <span style="color:#f92672">runs-on</span>: <span style="color:#ae81ff">ubuntu-latest</span>
+    <span style="color:#f92672">defaults</span>:
+      <span style="color:#f92672">run</span>:
+        <span style="color:#f92672">working-directory</span>: <span style="color:#ae81ff">terraform</span>
+    <span style="color:#f92672">env</span>:
+      <span style="color:#f92672">GOOGLE_CREDENTIALS</span>: <span style="color:#ae81ff">${{secrets.GOOGLE_CREDENTIALS}}</span>
+      <span style="color:#f92672">GOOGLE_PROJECT</span>: <span style="color:#ae81ff">${{ secrets.GOOGLE_PROJECT }}</span>
+    <span style="color:#f92672">steps</span>:
+      - <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">actions/checkout@v2</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Setup Terraform</span>
+        <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">hashicorp/setup-terraform@v1</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Init</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform init</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Format</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform fmt -check</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Validate</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform validate</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Plan</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform plan -out=gcp.tfplan</span>
+          
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform apply</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform apply -auto-approve gcp.tfplan</span>
+
+</code></pre></div><p>Let&rsquo;s walk through the workflow as this will create resources in GCP and start costing you money once the terraform fields are created.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">name</span>: <span style="color:#ae81ff">Apply infrastructure</span>
+<span style="color:#f92672">on</span>:
+  <span style="color:#f92672">push</span>:
+    <span style="color:#f92672">branches</span>: [<span style="color:#ae81ff">main]</span>
+</code></pre></div><p>This tells github to run this workflow on every push to the main branch.</p>
+<p>I have had my fair share of discussions if push to main should result in an automatic deploy/apply to production or if it should be a manual step/gate before it actually happens. In my opinion it should, once the main branch changes your environment should to.</p>
+<p>The value of having your infrastructure as code in a git repository reduces if you have the search through pipelineruns and commits to see what commit your latest apply to production was.</p>
+<p>As for the manual gate part of the argument: That&rsquo;s the purpose of the Pull Request you create against main.</p>
+<p>This is my opinions, at the moment of writing, you might have a different one and the arguments or use case that makes me change my mind.</p>
+<p>Next part, configuring the VM that runs our workflow steps:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">jobs</span>:
+  <span style="color:#f92672">terraform</span>:
+    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Run terraform apply</span>
+    <span style="color:#f92672">runs-on</span>: <span style="color:#ae81ff">ubuntu-latest</span>
+    <span style="color:#f92672">defaults</span>:
+      <span style="color:#f92672">run</span>:
+        <span style="color:#f92672">working-directory</span>: <span style="color:#ae81ff">terraform</span>
+    <span style="color:#f92672">env</span>:
+      <span style="color:#f92672">GOOGLE_CREDENTIALS</span>: <span style="color:#ae81ff">${{secrets.GOOGLE_CREDENTIALS}}</span>
+      <span style="color:#f92672">GOOGLE_PROJECT</span>: <span style="color:#ae81ff">${{ secrets.GOOGLE_PROJECT }}</span>
+</code></pre></div><p>We define a job with the name <code>Run terraform apply</code> it should be executed on a agent running the latest ubuntu image from github.</p>
+<p>We set the working directory in the repository to terraform as this is where we will place our terraform files.</p>
+<p>Lastly, we define a environment variable <code>GOOGLE_CREDENTIALS</code> and <code>GOOGLE_PROJECT</code> and give them value from the secrets we created earlier.</p>
+<p>Now for the actual work.</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml">    <span style="color:#f92672">steps</span>:
+      - <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">actions/checkout@v2</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Setup Terraform</span>
+        <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">hashicorp/setup-terraform@v1</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Init</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform init</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Format</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform fmt -check</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Validate</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform validate</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Plan</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform plan -out=gcp.tfplan</span>
+          
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform apply</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform apply -auto-approve gcp.tfplan</span>
+
+</code></pre></div><p>Steps defines unites of work.</p>
+<p>Each step explained:</p>
+<ol>
+<li>Checkout the repository</li>
+<li>Install and setup the latest version of terraform</li>
+<li>Initialize terraform, download and prepare providers and modules</li>
+<li>Check terraform formatting. Terraform can handle wrong indent, but readability for humans is better with well formnatted code (run <code>terraform fmt</code> before you push your changes)</li>
+<li>Validate the terraform scripts</li>
+<li>Prepare and save the terraform execution plan</li>
+<li>Apply the plan from step 6</li>
+</ol>
+<h3 id="defining-gcp-infrastructure-with-terraform">Defining GCP infrastructure with terraform</h3>
+<p>Up until now we have only prepared the tooling and automation. Finally it&rsquo;s time to define our GCP infrastructure.</p>
+<p>Disclaimer this is mostly copy/paste from <a href="https://registry.terraform.io/providers/hashicorp/google/latest/docs">GCP terraform provider documentation</a>.</p>
+<h4 id="defining-providers-and-backend">Defining providers and backend</h4>
+<p>From terraform.io:</p>
+<p>Providers are a logical abstraction of an upstream API. They are responsible for understanding API interactions and exposing resources.</p>
+<p>Create a file named <code>main.tf</code> the file can be named whatever as long has the extension <code>.tf</code> and not ends in _override (see: <a href="https://www.terraform.io/docs/language/files/override.html">Override Files</a>)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-hcl" data-lang="hcl"><span style="color:#66d9ef">terraform</span> {
+  <span style="color:#66d9ef">required_providers</span> {
+    google <span style="color:#f92672">=</span> {
+      source  <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;hashicorp/google&#34;</span>
+      version <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;3.82.0&#34;</span>
+    }
+  }
+
+  <span style="color:#66d9ef">backend</span> <span style="color:#e6db74">&#34;gcs&#34;</span> {
+    bucket <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;gh-tf-state&#34;</span>
+    prefix <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;terraform/state&#34;</span>
+  }
+}
+
+<span style="color:#66d9ef">provider</span> <span style="color:#e6db74">&#34;google&#34;</span> {
+  region <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;europe-north1&#34;</span>
+  zone   <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;europe-north1-a&#34;</span>
+}
+</code></pre></div><p>The hcl block <code>terraform</code> defines the required providers and version, in this case only the google provider, and the backend used for state.</p>
+<p>The <code>proverder &quot;google&quot;</code> block configures the provider we are going to use. In addition, we define the default project with the environment variable <code>GOOGLE_PROJECT</code>in our pipeline. You can also define it directly in the provider config.</p>
+<h4 id="describing-your-gcp-infrastructure">Describing your GCP infrastructure</h4>
+<p>After all this we finally are getting down to defining the actual infrastructure.</p>
+<p>Create a file called <code>gke.tf</code> again the file can be named almost anything, but the name should reflect what it creates as it makes life easier for the maintainer(s)</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-hcl" data-lang="hcl"><span style="color:#66d9ef">resource</span> <span style="color:#e6db74">&#34;google_service_account&#34; &#34;gke_sa&#34;</span> {
+  account_id   <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;gke-service-account&#34;</span>
+  display_name <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;GKE Service Account&#34;</span>
+}
+
+<span style="color:#66d9ef">resource</span> <span style="color:#e6db74">&#34;google_container_cluster&#34; &#34;demo-cluster&#34;</span> {
+  name                     <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;demo-gke-cluster&#34;</span>
+  remove_default_node_pool <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+  initial_node_count       <span style="color:#f92672">=</span> <span style="color:#ae81ff">1</span>
+}
+
+<span style="color:#66d9ef">resource</span> <span style="color:#e6db74">&#34;google_container_node_pool&#34; &#34;primary_preemptible_nodes&#34;</span> {
+  name       <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;gke-node-pool&#34;</span>
+  cluster    <span style="color:#f92672">=</span> <span style="color:#66d9ef">google_container_cluster</span>.<span style="color:#66d9ef">demo</span>.<span style="color:#66d9ef">name</span>
+  node_count <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span>
+
+  <span style="color:#66d9ef">node_config</span> {
+    preemptible  <span style="color:#f92672">=</span> <span style="color:#66d9ef">true</span>
+    machine_type <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;e2-medium&#34;</span>
+
+    service_account <span style="color:#f92672">=</span> <span style="color:#66d9ef">google_service_account</span>.<span style="color:#66d9ef">gke_sa</span>.<span style="color:#66d9ef">email</span>
+    oauth_scopes <span style="color:#f92672">=</span> [
+      <span style="color:#e6db74">&#34;https://www.googleapis.com/auth/cloud-platform&#34;</span>
+    ]
+  }
+}
+</code></pre></div><p>After all this we are only going to create three resources:</p>
+<ol>
+<li>service_account for the gke cluster</li>
+<li>gke cluster where we remove the default nodepool after creation</li>
+<li>nodepool with three preemptible nodes for our workloads</li>
+</ol>
+<p>Resource blocks in terraform have three parameters</p>
+<ol>
+<li>resource</li>
+<li>name of the provider resource we are going to create e.g.: <code>&quot;google_container_cluster&quot;</code></li>
+<li>name of the resource in your statefile e.g.: <code>&quot;demo-cluster&quot;</code></li>
+</ol>
+<p>I will not go further into terraform in this post. As this was ment to connect the different tools to automate your infrastructure deployments.
+The terraform documentation is really good so I urge you to read it: <a href="https://www.terraform.io/docs/index.html">terraform docs</a></p>
+<h3 id="reviewing-infrastructure-before-they-are-applied">Reviewing infrastructure before they are applied</h3>
+<p>As I said earlier your infrastructure should change as soon as your main branch changes, but you still need to review your changes before you apply them.</p>
+<p>Pull requests are in my opinion the perfect place to do this, you can see the changes made in your code with the resulting changes in your infrastructure.</p>
+<p>Let&rsquo;s setup the workflow that displays changes terraform are going to do when a pull request is merged.</p>
+<p>Create a file named <code>review.yaml</code> in the folder <code>.github/workflows</code></p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">name</span>: <span style="color:#ae81ff">Review infrastructure changes</span>
+<span style="color:#f92672">on</span>:
+  <span style="color:#f92672">pull_request</span>:
+    <span style="color:#f92672">branches</span>: [<span style="color:#ae81ff">main]</span>
+
+<span style="color:#f92672">jobs</span>:
+  <span style="color:#f92672">terraform</span>:
+    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Run terraform apply</span>
+    <span style="color:#f92672">runs-on</span>: <span style="color:#ae81ff">ubuntu-latest</span>
+    <span style="color:#f92672">defaults</span>:
+      <span style="color:#f92672">run</span>:
+        <span style="color:#f92672">working-directory</span>: <span style="color:#ae81ff">terraform</span>
+    <span style="color:#f92672">env</span>:
+      <span style="color:#f92672">GOOGLE_CREDENTIALS</span>: <span style="color:#ae81ff">${{secrets.GOOGLE_CREDENTIALS}}</span>
+      <span style="color:#f92672">GOOGLE_PROJECT</span>: <span style="color:#ae81ff">${{ secrets.GOOGLE_PROJECT }}</span>
+    <span style="color:#f92672">steps</span>:
+      - <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">actions/checkout@v2</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Setup Terraform</span>
+        <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">hashicorp/setup-terraform@v1</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Init</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform init</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Format</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform fmt -check</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Validate</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform validate</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Plan</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform plan</span>
+</code></pre></div><p>This is very similar to our <code>main.yaml</code> workflow.</p>
+<p>We have change the trigger to react to pull requests against the main branch</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">on</span>:
+  <span style="color:#f92672">pull_request</span>:
+    <span style="color:#f92672">branches</span>: [<span style="color:#ae81ff">main]</span>
+</code></pre></div><p>And we have removed the apply step. This will now only output the changes terraform are going to apply after merge to <code>main</code></p>
+<p>Terraform will now output the changes it is going to make in the execution log:</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-shell" data-lang="shell">Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  <span style="color:#75715e"># google_container_node_pool.primary_preemptible_nodes will be updated in-place</span>
+  ~ resource <span style="color:#e6db74">&#34;google_container_node_pool&#34;</span> <span style="color:#e6db74">&#34;primary_preemptible_nodes&#34;</span> <span style="color:#f92672">{</span>
+        id                  <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;projects/***/locations/europe-north1-a/clusters/demo-gke-cluster/nodePools/gke-node-pool&#34;</span>
+        name                <span style="color:#f92672">=</span> <span style="color:#e6db74">&#34;gke-node-pool&#34;</span>
+      ~ node_count          <span style="color:#f92672">=</span> <span style="color:#ae81ff">3</span> -&gt; <span style="color:#ae81ff">4</span>
+        <span style="color:#75715e"># (7 unchanged attributes hidden)</span>
+
+
+
+        <span style="color:#75715e"># (3 unchanged blocks hidden)</span>
+    <span style="color:#f92672">}</span>
+
+Plan: <span style="color:#ae81ff">0</span> to add, <span style="color:#ae81ff">1</span> to change, <span style="color:#ae81ff">0</span> to destroy.
+</code></pre></div><p>Remember that if your merge another PR or otherwise change your infra structure the plan might change, so rerun the execution if in doubt.</p>
+<h3 id="closing-notes">Closing notes</h3>
+<p>There are several other ways to automate your terraform setup like with <a href="https://learn.hashicorp.com/tutorials/terraform/github-actions">terraform cloud</a></p>
+<p>And remember to teardown/destroy the resources you created, in my repository I have created a workflow that is executed every day at eight in case I forget to destroy it.</p>
+<p>It is also possible to schedule the destroy workflow manually</p>
+<div class="highlight"><pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-yaml" data-lang="yaml"><span style="color:#f92672">name</span>: <span style="color:#ae81ff">Destroy infrastructure</span>
+<span style="color:#f92672">on</span>:
+  <span style="color:#f92672">workflow_dispatch</span>:
+  <span style="color:#f92672">schedule</span>:
+    - <span style="color:#f92672">cron</span>: <span style="color:#ae81ff">0</span> <span style="color:#ae81ff">20</span> * * * <span style="color:#75715e">#Schedule destroy every night at eight</span>
+
+<span style="color:#f92672">jobs</span>:
+  <span style="color:#f92672">terraform</span>:
+    <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Run terraform apply -destroy</span>
+    <span style="color:#f92672">runs-on</span>: <span style="color:#ae81ff">ubuntu-latest</span>
+    <span style="color:#f92672">defaults</span>:
+      <span style="color:#f92672">run</span>:
+        <span style="color:#f92672">working-directory</span>: <span style="color:#ae81ff">terraform</span>
+    <span style="color:#f92672">env</span>:
+      <span style="color:#f92672">GOOGLE_CREDENTIALS</span>: <span style="color:#ae81ff">${{secrets.GOOGLE_CREDENTIALS}}</span>
+      <span style="color:#f92672">GOOGLE_PROJECT</span>: <span style="color:#ae81ff">${{ secrets.GOOGLE_PROJECT }}</span>
+    <span style="color:#f92672">steps</span>:
+      - <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">actions/checkout@v2</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Setup Terraform</span>
+        <span style="color:#f92672">uses</span>: <span style="color:#ae81ff">hashicorp/setup-terraform@v1</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Init</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform init</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Format</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform fmt -check</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Validate</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform validate</span>
+
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform Plan</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform plan -destroy -out=gcp.tfplan</span>
+          
+      - <span style="color:#f92672">name</span>: <span style="color:#ae81ff">Terraform apply</span>
+        <span style="color:#f92672">run</span>: <span style="color:#ae81ff">terraform apply -destroy -auto-approve gcp.tfplan</span>
+</code></pre></div><p>The goal of this post was to make a simple example with a few tools to automate your terraform setup.</p>
+<p>I hope you found it interesting, learned something or inspired you. Reach out on twitter if you have any questions.</p>
+]]></content></item><item><title>Welcome to 418.cloud</title><link>http://418.cloud/posts/2021/06/welcome-to-418.cloud/</link><pubDate>Wed, 30 Jun 2021 16:26:21 +0200</pubDate><guid>http://418.cloud/posts/2021/06/welcome-to-418.cloud/</guid><description>After far too much time I have finally taken the time to add some content to one of the domains I control, yes there are more without any content ;)
 The domain 418.cloud is inspired by the HTTP status 418 I'm a teapot. I&amp;rsquo;m a coffee man myself, but who wouldn&amp;rsquo;t want some tea in the clouds.
 Hopefully I will someday add some more posts with trivial dev/ops HOWTOs that you can find better explained at some other site, links might be included.</description><content type="html"><![CDATA[<p>After far too much time I have finally taken the time to add some content to one of the domains I control, yes there are more without any content ;)</p>
 <p>The domain 418.cloud is inspired by the HTTP status <code>418 I'm a teapot</code>. I&rsquo;m a coffee man myself, but who wouldn&rsquo;t want some tea in the clouds.</p>
