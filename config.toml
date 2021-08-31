@@ -33,11 +33,11 @@ theme = "hello-friend-ng"
 
   [[params.social]]
     name = "github"
-    url = "https://github.com/tjololo"
+    url = "https://github.com/418-cloud"
 
   [[params.social]]
-    name = "docker"
-    url = "https://hub.docker.com/u/tjololo"
+    name = "twitter"
+    url = "https://twitter.com/418cloud"
 
 [permalinks]
   posts = "/posts/:year/:month/:title/"
