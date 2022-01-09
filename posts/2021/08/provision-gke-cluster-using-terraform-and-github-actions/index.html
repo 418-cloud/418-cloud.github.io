@@ -16,7 +16,15 @@ As a developer at heart I strive to automate as much as possible through code, e
 Provision GKE Cluster using Terraform and Github Actions :: 418 cloud
 </title>
 <link href=https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css rel=stylesheet type=text/css>
-<link rel=stylesheet href=/main.29c2c8c3fc9cf748254138351f142ac2833b208a68e83aec126edc98b59efef2.css>
+<link rel=stylesheet href=/main.17863a81d979b637a02cd7632a4d86e9d80563ef460fd6af1a56962efcaa066b.css>
+<link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png>
+<link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png>
+<link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png>
+<link rel=manifest href=/site.webmanifest>
+<link rel=mask-icon href=/safari-pinned-tab.svg color>
+<link rel="shortcut icon" href=/favicon.ico>
+<meta name=msapplication-TileColor content>
+<meta name=theme-color content>
 <meta itemprop=name content="Provision GKE Cluster using Terraform and Github Actions">
 <meta itemprop=description content="I started my career as a software developer writing small monolithic web applications and web services in Java.
 Later the monoliths where replaced by microservices, nanoservice or functions. No matter what you are writing or calling it you will eventually need some servers to run it on.
@@ -90,9 +98,9 @@ As a developer at heart I strive to automate as much as possible through code, e
 <h4 id=create-service-account>Create service account</h4>
 <p>Following the GCP documentation <a href=https://cloud.google.com/iam/docs/creating-managing-service-accounts>Creating and managing service accounts</a></p>
 <p>Authenticate with gcloud cli</p>
-<pre><code>gcloud auth login
+<pre tabindex=0><code>gcloud auth login
 </code></pre><p>Switch to your project with:</p>
-<pre><code>gcloud config set project &lt;project-id&gt;
+<pre tabindex=0><code>gcloud config set project &lt;project-id&gt;
 </code></pre><p>After authenticating with gcloud commandline tool run this command to create a service account with the name <em>tf-gh-actions</em></p>
 <div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>gcloud iam service-accounts create tf-gh-actions <span style=color:#ae81ff>\
 </span><span style=color:#ae81ff></span>    --description<span style=color:#f92672>=</span><span style=color:#e6db74>&#34;Used to provision resources with terraform from github actions&#34;</span> <span style=color:#ae81ff>\
@@ -423,6 +431,12 @@ Plan: <span style=color:#ae81ff>0</span> to add, <span style=color:#ae81ff>1</sp
 <hr>
 </div>
 <div class=pagination__buttons>
+<span class="button previous">
+<a href=http://418.cloud/posts/2022/01/provision-aks-cluster-using-terraform-and-github-actions/>
+<span class=button__icon>←</span>
+<span class=button__text>Provision AKS Cluster using Terraform and Github Actions</span>
+</a>
+</span>
 <span class="button next">
 <a href=http://418.cloud/posts/2021/06/welcome-to-418.cloud/>
 <span class=button__text>Welcome to 418.cloud</span>

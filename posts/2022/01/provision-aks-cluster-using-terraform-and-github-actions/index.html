@@ -1,0 +1,323 @@
+<!doctype html><html lang=en>
+<head>
+<meta charset=utf-8>
+<meta http-equiv=x-ua-compatible content="ie=edge">
+<meta name=viewport content="width=device-width,initial-scale=1,shrink-to-fit=no">
+<meta name=author content>
+<meta name=description content="In my previous post Provision GKE Cluster using Terraform and Github Actions I tried to show how you could use Github actions and terraform to provision a GKE cluster in GCP.
+In this post I will do the same only this time the goal is to create a AKS cluster in Azure and what changes needed from the scripts used to provision a GKE cluster.
+Prerequisites  Azure Account Github Account Azure cli  Demo sources If you want to fork the repository containing the code described in this post you can find it here: 418-cloud/terraform-actions-azure">
+<meta name=keywords content=",terraform,aks,github actions,gh-actions,gh,tf,azure,cloud">
+<meta name=robots content="noodp">
+<meta name=theme-color content>
+<link rel=canonical href=http://418.cloud/posts/2022/01/provision-aks-cluster-using-terraform-and-github-actions/>
+<title>
+Provision AKS Cluster using Terraform and Github Actions :: 418 cloud
+</title>
+<link href=https://cdnjs.cloudflare.com/ajax/libs/flag-icon-css/3.5.0/css/flag-icon.min.css rel=stylesheet type=text/css>
+<link rel=stylesheet href=/main.17863a81d979b637a02cd7632a4d86e9d80563ef460fd6af1a56962efcaa066b.css>
+<link rel=apple-touch-icon sizes=180x180 href=/apple-touch-icon.png>
+<link rel=icon type=image/png sizes=32x32 href=/favicon-32x32.png>
+<link rel=icon type=image/png sizes=16x16 href=/favicon-16x16.png>
+<link rel=manifest href=/site.webmanifest>
+<link rel=mask-icon href=/safari-pinned-tab.svg color>
+<link rel="shortcut icon" href=/favicon.ico>
+<meta name=msapplication-TileColor content>
+<meta name=theme-color content>
+<meta itemprop=name content="Provision AKS Cluster using Terraform and Github Actions">
+<meta itemprop=description content="In my previous post Provision GKE Cluster using Terraform and Github Actions I tried to show how you could use Github actions and terraform to provision a GKE cluster in GCP.
+In this post I will do the same only this time the goal is to create a AKS cluster in Azure and what changes needed from the scripts used to provision a GKE cluster.
+Prerequisites  Azure Account Github Account Azure cli  Demo sources If you want to fork the repository containing the code described in this post you can find it here: 418-cloud/terraform-actions-azure"><meta itemprop=datePublished content="2022-01-08T13:21:57+01:00">
+<meta itemprop=dateModified content="2022-01-08T13:21:57+01:00">
+<meta itemprop=wordCount content="1404">
+<meta itemprop=keywords content="terraform,aks,github actions,gh-actions,gh,tf,azure,cloud,">
+<meta name=twitter:card content="summary">
+<meta name=twitter:title content="Provision AKS Cluster using Terraform and Github Actions">
+<meta name=twitter:description content="In my previous post Provision GKE Cluster using Terraform and Github Actions I tried to show how you could use Github actions and terraform to provision a GKE cluster in GCP.
+In this post I will do the same only this time the goal is to create a AKS cluster in Azure and what changes needed from the scripts used to provision a GKE cluster.
+Prerequisites  Azure Account Github Account Azure cli  Demo sources If you want to fork the repository containing the code described in this post you can find it here: 418-cloud/terraform-actions-azure">
+<meta property="article:published_time" content="2022-01-08 13:21:57 +0100 +0100">
+</head>
+<body>
+<div class=container>
+<header class=header>
+<span class=header__inner>
+<a href=/ style=text-decoration:none>
+<div class=logo>
+<span class=logo__mark>></span>
+<span class=logo__text>$ cloud /teapot/</span>
+<span class=logo__cursor>
+</span>
+</div>
+</a>
+<span class=header__right>
+<nav class=menu>
+<ul class=menu__inner><li><a href=/posts/>Posts</a></li>
+</ul>
+</nav>
+<span class=menu-trigger><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+</span>
+</span>
+</span>
+</header>
+<div class=content>
+<main class=post>
+<div class=post-info>
+<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-clock"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+7 minutes
+</p>
+</div>
+<article>
+<h1 class=post-title>
+<a href=http://418.cloud/posts/2022/01/provision-aks-cluster-using-terraform-and-github-actions/>Provision AKS Cluster using Terraform and Github Actions</a>
+</h1>
+<hr>
+<aside id=toc>
+<div class=toc-title>Table of Contents</div>
+<nav id=TableOfContents>
+<ul>
+<li>
+<ul>
+<li><a href=#prerequisites>Prerequisites</a></li>
+<li><a href=#demo-sources>Demo sources</a></li>
+<li><a href=#prepare-credentials-and-state-backend-in-azure-for-terraform>Prepare credentials and state backend in Azure for Terraform</a></li>
+<li><a href=#setting-up-github-actions-workflow>Setting up Github Actions workflow</a></li>
+<li><a href=#create-terraform-workflows>Create terraform workflows</a></li>
+<li><a href=#defining-azure-infrastructure-with-terraform>Defining Azure infrastructure with terraform</a></li>
+<li><a href=#closing-notes>Closing notes</a></li>
+</ul>
+</li>
+</ul>
+</nav>
+</aside>
+<hr>
+<div class=post-content>
+<p>In my previous post <a href=http://418.cloud/posts/2021/08/provision-gke-cluster-using-terraform-and-github-actions/>Provision GKE Cluster using Terraform and Github Actions</a> I tried to show how you could use Github actions and terraform to provision a <a href=https://cloud.google.com/kubernetes-engine>GKE</a> cluster in <a href=https://cloud.google.com/>GCP</a>.</p>
+<p>In this post I will do the same only this time the goal is to create a <a href=https://azure.microsoft.com/services/kubernetes-service/>AKS</a> cluster in <a href=https://azure.microsoft.com/>Azure</a> and what changes needed from the scripts used to provision a GKE cluster.</p>
+<h3 id=prerequisites>Prerequisites</h3>
+<ol>
+<li><a href=https://azure.microsoft.com/en-gb/free/>Azure Account</a></li>
+<li><a href=https://github.com/>Github Account</a></li>
+<li><a href=https://docs.microsoft.com/en-us/cli/azure/install-azure-cli>Azure cli</a></li>
+</ol>
+<h3 id=demo-sources>Demo sources</h3>
+<p>If you want to fork the repository containing the code described in this post you can find it here: <a href=https://github.com/418-cloud/terraform-actions-azure>418-cloud/terraform-actions-azure</a></p>
+<h3 id=prepare-credentials-and-state-backend-in-azure-for-terraform>Prepare credentials and state backend in Azure for Terraform</h3>
+<p>Terraform needs credentials to authenticate to Azure and a place to store the state.</p>
+<h4 id=create-a-service-principal>Create a service principal</h4>
+<p>Following the Azure documentation <a href=https://docs.microsoft.com/en-us/cli/azure/create-an-azure-service-principal-azure-cli>Create an Azure service principal with the Azure CLI</a></p>
+<p>Authenticate with azure cli</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>az login
+</code></pre></div><p>Switch to the Subscription you are going to use</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>az account set --subscription <span style=color:#e6db74>&#34;&lt;subscription-uuid/name&gt;&#34;</span>
+</code></pre></div><p>After authenticating and switching to the desired Subscription run this command to create a Service Principal with the name <em>tf-gh-actions</em> and grant it Contributor permissions to the Subscription
+This command will output the credentials for the Service Principal we will need these later, but keeps these safe and secret</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>az ad sp create-for-rbac --name tf-gh-actions --role Contributor
+</code></pre></div><h4 id=create-a-storageaccount-and-container-for-terraform-state>Create a StorageAccount and container for terraform state</h4>
+<p>Create a ResourceGroup for the StorageAccount we are going to create</p>
+<p>The following command will create a ResourceGroup with the name <em>tf-gh-actions-storage</em> in <em>westeurope</em></p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>az group create <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --name tf-gh-actions-storage <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --location westeurope
+</code></pre></div><p>Create the StorageAccount using azure CLI named <em>tfghdemostorage</em> in <em>westeurope</em></p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>az storage account create <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --name tfghdemostorage <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --resource-group tf-gh-actions-storage <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --location westeurope <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --sku Standard_LRS <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --kind StorageV2
+</code></pre></div><p>Create a blob container named <em>infrastate</em> in the StorageAccount where we will tell terraform to store the state file.</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>az storage container create <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --name infrastate <span style=color:#ae81ff>\
+</span><span style=color:#ae81ff></span>  --account-name tfghdemostorage
+</code></pre></div><p>If you created the storageaccount in another Subscription or did not grant the ServicePrincipal Contributor you might need to grant permissions to the ServicePrincipal.</p>
+<h3 id=setting-up-github-actions-workflow>Setting up Github Actions workflow</h3>
+<p>This section is very similar to what I did in my previous post. If you want a detailed walkthrough of the workflows in Github actions please read the <a href=http://418.cloud/posts/2021/08/provision-gke-cluster-using-terraform-and-github-actions/>previous post</a>.</p>
+<p>Here I will try to focus on the differences as this will point out the benefits of using Terraform as a tool to provision infrastructure.</p>
+<h4 id=add-the-azure-credentials-as-secrets-for-github-actions>Add the Azure credentials as secrets for Github actions</h4>
+<p>Credentials should never be commited to a git repository so we will add them as secrets and use these from our Github actions.</p>
+<p>Secrets are located under the <em>Settings</em> tab in your repository.</p>
+<p>We are going to create four secrets:</p>
+<ul>
+<li><strong>ARM_CLIENT_ID</strong>
+UUID of the service principal (appId from the create service principal command output)</li>
+<li><strong>ARM_CLIENT_SECRET</strong> password for the service principal (password from the create service principal command output)</li>
+<li><strong>ARM_SUBSCRIPTION_ID</strong> UUID of the subscription where we are going to create the AKS cluster</li>
+<li><strong>ARM_TENANT_ID</strong> UUID of the tenant where the service principal was created (tenant from the create service principal command output)</li>
+</ul>
+<h3 id=create-terraform-workflows>Create terraform workflows</h3>
+<p>We are going the copy/past the workflows from the <a href=https://github.com/418-cloud/terraform-actions-gcp>418-cloud/terraform-actions-gcp</a> repository and make some small changes.</p>
+<p>We are going to remove the two environment variables for GCP and add four environment variables for the secrets we defined in the previous step:</p>
+<p>.github/workflows/main.yaml</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-yaml data-lang=yaml><span style=color:#f92672>name</span>: <span style=color:#ae81ff>Apply infrastructure</span>
+<span style=color:#f92672>on</span>:
+  <span style=color:#f92672>push</span>:
+    <span style=color:#f92672>branches</span>: [<span style=color:#ae81ff>main]</span>
+
+<span style=color:#f92672>jobs</span>:
+  <span style=color:#f92672>terraform</span>:
+    <span style=color:#f92672>name</span>: <span style=color:#ae81ff>Run terraform apply</span>
+    <span style=color:#f92672>runs-on</span>: <span style=color:#ae81ff>ubuntu-latest</span>
+    <span style=color:#f92672>defaults</span>:
+      <span style=color:#f92672>run</span>:
+        <span style=color:#f92672>working-directory</span>: <span style=color:#ae81ff>terraform</span>
+    <span style=color:#f92672>env</span>:
+      <span style=color:#f92672>ARM_CLIENT_ID</span>: <span style=color:#ae81ff>${{secrets.ARM_CLIENT_ID}}</span>
+      <span style=color:#f92672>ARM_CLIENT_SECRET</span>: <span style=color:#ae81ff>${{ secrets.ARM_CLIENT_SECRET }}</span>
+      <span style=color:#f92672>ARM_SUBSCRIPTION_ID</span>: <span style=color:#ae81ff>${{ secrets.ARM_SUBSCRIPTION_ID }}</span>
+      <span style=color:#f92672>ARM_TENANT_ID</span>: <span style=color:#ae81ff>${{ secrets.ARM_TENANT_ID }}</span>
+</code></pre></div><p>We do the same changes to the other workflows</p>
+<ul>
+<li>.github/workflows/review.yaml</li>
+<li>.github/workflows/destroy.yaml</li>
+</ul>
+<h3 id=defining-azure-infrastructure-with-terraform>Defining Azure infrastructure with terraform</h3>
+<p>We have now made all the preparations and all the changes we need for the automation to work. Now it&rsquo;s time to define the infrastructure in Azure.</p>
+<p>In my last post we used the &ldquo;google&rdquo; provider, in this post we are going to substitute the provider and resources with the &ldquo;azurerm&rdquo; provider.</p>
+<p>Terraform providers can be viewed as plugins, we are going to remove the google plugin and add the azurerm plugin.</p>
+<p>Resources are still defined as hcl but the resources have different name and attributes.</p>
+<h4 id=defining-provider-and-backend>Defining provider and backend</h4>
+<p>Once again, I will copy/past most of these example from terraforms great documentation for its providers. In this case the <a href=https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs>azurerm provider</a></p>
+<p>Create a file named <code>main.tf</code> this will hold the configuration and requirements for our provider</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#66d9ef>terraform</span> {
+  <span style=color:#66d9ef>required_providers</span> {
+    azurerm <span style=color:#f92672>=</span> {
+      source  <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;hashicorp/azurerm&#34;</span>
+      version <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;2.91.0&#34;</span>
+    }
+  }
+  <span style=color:#66d9ef>backend</span> <span style=color:#e6db74>&#34;azurerm&#34;</span> {
+    resource_group_name  <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;tf-gh-actions-storage&#34;</span>
+    storage_account_name <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;tfghdemostorage&#34;</span>
+    container_name       <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;infrastate&#34;</span>
+    key                  <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;demo.tfstate&#34;</span>
+  }
+}
+
+<span style=color:#66d9ef>provider</span> <span style=color:#e6db74>&#34;azurerm&#34;</span> {
+  <span style=color:#66d9ef>features</span> {}
+}
+</code></pre></div><p>The hcl block <code>terraform</code> defines the providers and version we require and the backend where we are going to store the state.</p>
+<p>The hcl block <code>provider "azurerm"</code> block defines the actual provider with config, we have no additional config so our is empty (we need to define a empty features block as it is required).</p>
+<h4 id=defining-your-azure-infrastructure>Defining your Azure infrastructure</h4>
+<p>Finally, we are again coming to the steps where we actually can define our infrastructure.</p>
+<p>We create a file named &ldquo;azure.tf&rdquo; where we will define the hcl describing the azure infrastructure. The name of the file is not important, but as with all software files it should reflect what you are creating in it.</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-hcl data-lang=hcl><span style=color:#66d9ef>resource</span> <span style=color:#e6db74>&#34;azurerm_resource_group&#34; &#34;teapot_demo&#34;</span> {
+  name     <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;teapot-demo&#34;</span>
+  location <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;westeurope&#34;</span>
+}
+
+<span style=color:#66d9ef>resource</span> <span style=color:#e6db74>&#34;azurerm_kubernetes_cluster&#34; &#34;teapot_demo&#34;</span> {
+  name                <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;teapot-demo&#34;</span>
+  location            <span style=color:#f92672>=</span> <span style=color:#66d9ef>azurerm_resource_group</span>.<span style=color:#66d9ef>teapot_demo</span>.<span style=color:#66d9ef>location</span>
+  resource_group_name <span style=color:#f92672>=</span> <span style=color:#66d9ef>azurerm_resource_group</span>.<span style=color:#66d9ef>teapot_demo</span>.<span style=color:#66d9ef>name</span>
+  dns_prefix          <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;teapotaks&#34;</span>
+
+  <span style=color:#66d9ef>default_node_pool</span> {
+    name       <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;default&#34;</span>
+    node_count <span style=color:#f92672>=</span> <span style=color:#ae81ff>1</span>
+    vm_size    <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;Standard_D2_v2&#34;</span>
+  }
+
+  <span style=color:#66d9ef>identity</span> {
+    type <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;SystemAssigned&#34;</span>
+  }
+
+  tags <span style=color:#f92672>=</span> {
+    Environment <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;Demo&#34;</span>
+  }
+}
+</code></pre></div><p>This script will create a resourcegroup name <code>418-demo</code> and a AKS cluster named <code>418-demo</code>in this resourcegroup.</p>
+<h4 id=making-changes-to-your-infrastructure>Making changes to your infrastructure</h4>
+<p>Given that you have committed the files over to your main branch and no errors occurred you should now have a 1 node AKS cluster.</p>
+<p>At some point you will need to make changes to your infrastructure, and this is where terraform really shines in my mind. To make changes we can now make a commit and if we want to, we can review the changes in the configuration and the changes this is going to change in the cloud.</p>
+<p>The review pipeline we create earlier will output what will change in the cloud if we make changes to the config in a PR.</p>
+<p>Let&rsquo;s change the number of nodes in the AKS cluster commit it to a new branch and issue a PR to main and see what terraform and the review pipeline outputs.</p>
+<p>We change <a href=https://github.com/418-cloud/terraform-actions-azure/blob/main/terraform/azure.tf#L14>line 14 in terraform/azure.tf</a> file from 1 to 2, create a new branch, commit and push it to Github and issue a PR to main.</p>
+<p>As soon as we create the PR the review workflow will start and output something similar to this:</p>
+<div class=highlight><pre tabindex=0 style=color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4><code class=language-shell data-lang=shell>Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  ~ update in-place
+
+Terraform will perform the following actions:
+
+  <span style=color:#75715e># azurerm_kubernetes_cluster.teapot_demo will be updated in-place</span>
+  ~ resource <span style=color:#e6db74>&#34;azurerm_kubernetes_cluster&#34;</span> <span style=color:#e6db74>&#34;teapot_demo&#34;</span> <span style=color:#f92672>{</span>
+        id                                  <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;/subscriptions/***/resourceGroups/teapot-demo/providers/Microsoft.ContainerService/managedClusters/teapot-demo&#34;</span>
+        name                                <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;teapot-demo&#34;</span>
+        tags                                <span style=color:#f92672>=</span> <span style=color:#f92672>{</span>
+            <span style=color:#e6db74>&#34;Environment&#34;</span> <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;Demo&#34;</span>
+        <span style=color:#f92672>}</span>
+        <span style=color:#75715e># (18 unchanged attributes hidden)</span>
+
+
+      ~ default_node_pool <span style=color:#f92672>{</span>
+            name                         <span style=color:#f92672>=</span> <span style=color:#e6db74>&#34;default&#34;</span>
+          ~ node_count                   <span style=color:#f92672>=</span> <span style=color:#ae81ff>1</span> -&gt; <span style=color:#ae81ff>2</span>
+            tags                         <span style=color:#f92672>=</span> <span style=color:#f92672>{}</span>
+            <span style=color:#75715e># (19 unchanged attributes hidden)</span>
+        <span style=color:#f92672>}</span>
+
+
+
+
+        <span style=color:#75715e># (5 unchanged blocks hidden)</span>
+    <span style=color:#f92672>}</span>
+
+Plan: <span style=color:#ae81ff>0</span> to add, <span style=color:#ae81ff>1</span> to change, <span style=color:#ae81ff>0</span> to destroy.
+</code></pre></div><p>The output will also notify you of changes made outside of terraform, tags added and other changes. These will be updated in your statefile next time you run apply.</p>
+<p>You can view the PR and output from the workflow <a href=https://github.com/418-cloud/terraform-actions-azure/pull/1>here</a>.</p>
+<h3 id=closing-notes>Closing notes</h3>
+<p>The terraform configuration for Azure is different from my GCP example, but we could combine the two repos and manage both infrastructures from one repository.</p>
+<p>This along with the declarative nature of terraform is the real value with it. I can clearly define my desired state in multiple providers in one repository and make changes to them as I need.</p>
+<p>There is still many other ways to automate your terraform setup like <a href=https://learn.hashicorp.com/tutorials/terraform/github-actions>terraform cloud</a></p>
+<p>To save money you need to remember to destroy all the resources you have created in this demo. I have added a destroy pipeline in the example repository that runs every evening, this pipeline can also be triggered manually.</p>
+<p>Once again I hope you found it interesting, learned something and/or inspired you. Reach out on twitter or Github if you have any questions.</p>
+</div>
+</article>
+<hr>
+<div class=post-info>
+<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-tag meta-icon"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83.0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7" y2="7"/></svg>
+<span class=tag><a href=http://418.cloud/tags/terraform/>terraform</a></span>
+<span class=tag><a href=http://418.cloud/tags/aks/>aks</a></span>
+<span class=tag><a href=http://418.cloud/tags/github-actions/>github actions</a></span>
+<span class=tag><a href=http://418.cloud/tags/gh-actions/>gh-actions</a></span>
+<span class=tag><a href=http://418.cloud/tags/gh/>gh</a></span>
+<span class=tag><a href=http://418.cloud/tags/tf/>tf</a></span>
+<span class=tag><a href=http://418.cloud/tags/azure/>azure</a></span>
+<span class=tag><a href=http://418.cloud/tags/cloud/>cloud</a></span>
+</p>
+<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-file-text"><path d="M14 2H6A2 2 0 004 4v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+1404 Words
+</p>
+<p><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentcolor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-calendar"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+08.01.2022 12:21
+</p>
+</div>
+<div class=pagination>
+<div class=pagination__title>
+<span class=pagination__title-h></span>
+<hr>
+</div>
+<div class=pagination__buttons>
+<span class="button next">
+<a href=http://418.cloud/posts/2021/08/provision-gke-cluster-using-terraform-and-github-actions/>
+<span class=button__text>Provision GKE Cluster using Terraform and Github Actions</span>
+<span class=button__icon>→</span>
+</a>
+</span>
+</div>
+</div>
+</main>
+</div>
+<footer class=footer>
+<div class=footer__inner>
+<div class=footer__content>
+<span>Powered by <a href=http://gohugo.io>Hugo</a></span><span>Themed by <a href=https://themes.gohugo.io/hugo-theme-hello-friend-ng/>hello-friend-ng</a></span>
+</div>
+</div>
+</footer>
+</div>
+<script type=text/javascript src=/bundle.min.599099f1f14b78b657d524b28e10e0c5098e7cd46e9c7aed73d577068a276c3ff1bb234cbf29cb313333e83cf411727b43157c91ce5b809e2ffc81664614608e.js integrity="sha512-WZCZ8fFLeLZX1SSyjhDgxQmOfNRunHrtc9V3BoonbD/xuyNMvynLMTMz6Dz0EXJ7QxV8kc5bgJ4v/IFmRhRgjg=="></script>
+</body>
+</html>
