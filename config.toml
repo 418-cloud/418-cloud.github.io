@@ -36,8 +36,8 @@ theme = "hello-friend-ng"
     url = "https://github.com/418-cloud"
 
   [[params.social]]
-    name = "twitter"
-    url = "https://twitter.com/418cloud"
+    name = "bluesky"
+    url = "https://bsky.app/profile/418.cloud"
 
 [permalinks]
   posts = "/posts/:year/:month/:title/"
